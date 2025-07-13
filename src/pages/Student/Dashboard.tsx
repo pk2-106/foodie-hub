@@ -81,6 +81,7 @@ const StudentDashboard: React.FC = () => {
 
   const fetchMenuItems = async () => {
     try {
+      console.log('🔄 Fetching menu items...');
       const { data, error } = await supabase
         .from('menu_items')
         .select('*')
@@ -88,6 +89,7 @@ const StudentDashboard: React.FC = () => {
 
       if (error) throw error;
       
+      console.log('📊 Fetched menu items:', data?.length || 0);
       setMenuItems(data || []);
     } catch (error) {
       console.error('Error fetching menu items:', error);
@@ -97,6 +99,7 @@ const StudentDashboard: React.FC = () => {
 
   const fetchCartItems = async () => {
     try {
+      console.log('🛒 Fetching cart items...');
       const { data, error } = await supabase
         .from('cart_items')
         .select(`
@@ -106,6 +109,7 @@ const StudentDashboard: React.FC = () => {
         .eq('user_id', user?.id);
 
       if (error) throw error;
+      console.log('🛒 Fetched cart items:', data?.length || 0);
       setCartItems(data || []);
     } catch (error) {
       console.error('Error fetching cart items:', error);
@@ -140,6 +144,7 @@ const StudentDashboard: React.FC = () => {
   const addToCart = async (menuItem: MenuItem) => {
     if (updatingItems.has(menuItem.id)) return;
 
+    console.log('🔄 Adding to cart - Initial quantity:', menuItem.quantity_available);
 
     setUpdatingItems(prev => new Set(prev).add(menuItem.id));
 
@@ -152,6 +157,7 @@ const StudentDashboard: React.FC = () => {
         .single();
 
       if (fetchError) throw fetchError;
+      console.log('📊 Current DB quantity:', currentMenuItem.quantity_available);
 
       // Check if item is available
       if (currentMenuItem.quantity_available <= 0) {
@@ -164,6 +170,7 @@ const StudentDashboard: React.FC = () => {
 
       if (existingItem) {
         // Update existing cart item quantity
+        console.log('📝 Updating existing cart item from', existingItem.quantity, 'to', existingItem.quantity + 1);
         const { error: cartError } = await supabase
           .from('cart_items')
           .update({ quantity: existingItem.quantity + 1 })
@@ -172,6 +179,7 @@ const StudentDashboard: React.FC = () => {
         if (cartError) throw cartError;
       } else {
         // Create new cart item
+        console.log('➕ Creating new cart item');
         const { error: insertError } = await supabase
           .from('cart_items')
           .insert({
@@ -184,15 +192,23 @@ const StudentDashboard: React.FC = () => {
       }
 
       // CRITICAL: Update menu item quantity in database (reduce by 1)
+      const newQuantity = currentMenuItem.quantity_available - 1;
+      console.log('🔢 Updating menu quantity from', currentMenuItem.quantity_available, 'to', newQuantity);
       const { error: menuError } = await supabase
         .from('menu_items')
-        .update({ quantity_available: currentMenuItem.quantity_available - 1 })
+        .update({ quantity_available: newQuantity })
         .eq('id', menuItem.id);
 
-      if (menuError) throw menuError;
+      if (menuError) {
+        console.error('❌ Menu update error:', menuError);
+        throw menuError;
+      }
+      console.log('✅ Menu quantity updated successfully');
 
       // Force refresh both cart and menu items to reflect changes immediately
+      console.log('🔄 Refreshing data...');
       await Promise.all([fetchCartItems(), fetchMenuItems()]);
+      console.log('✅ Data refreshed');
       showToast('Item added to cart', 'success');
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -278,6 +294,7 @@ const StudentDashboard: React.FC = () => {
       return;
     }
 
+    console.log('🗑️ Removing from cart - quantity to return:', cartItem.quantity);
     setUpdatingItems(prev => new Set(prev).add(cartItem.menu_item_id));
 
     try {
@@ -293,6 +310,7 @@ const StudentDashboard: React.FC = () => {
         return;
       }
 
+      console.log('📊 Current menu quantity before return:', currentMenuItem.quantity_available);
       // Remove from cart first
       const { error } = await supabase
         .from('cart_items')
@@ -300,19 +318,28 @@ const StudentDashboard: React.FC = () => {
         .eq('id', cartItemId);
 
       if (error) throw error;
+      console.log('✅ Cart item removed');
 
       // CRITICAL: Return the full quantity back to menu item in database
+      const newQuantity = currentMenuItem.quantity_available + cartItem.quantity;
+      console.log('🔢 Returning quantity - new total:', newQuantity);
       const { error: menuError } = await supabase
         .from('menu_items')
         .update({ 
-          quantity_available: currentMenuItem.quantity_available + cartItem.quantity 
+          quantity_available: newQuantity
         })
         .eq('id', cartItem.menu_item_id);
 
-      if (menuError) throw menuError;
+      if (menuError) {
+        console.error('❌ Menu quantity return error:', menuError);
+        throw menuError;
+      }
+      console.log('✅ Quantity returned to menu');
 
       // Force refresh both cart and menu items to reflect changes immediately
+      console.log('🔄 Refreshing data after removal...');
       await Promise.all([fetchCartItems(), fetchMenuItems()]);
+      console.log('✅ Data refreshed after removal');
       showToast('Item removed from cart', 'success');
     } catch (error) {
       console.error('Error removing from cart:', error);
