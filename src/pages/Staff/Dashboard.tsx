@@ -26,6 +26,16 @@ const StaffDashboard: React.FC = () => {
   const [deletingMenuItem, setDeletingMenuItem] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  // Auto-refresh data every 30 seconds to keep quantities updated
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchOrders();
+      fetchMenuItems();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
@@ -172,6 +182,7 @@ const StaffDashboard: React.FC = () => {
       setMenuItems(data || []);
     } catch (error) {
       console.error('Error fetching menu items:', error);
+      showToast('Failed to fetch menu items. Please try again.', 'error');
     }
   };
 
@@ -430,6 +441,10 @@ const StaffDashboard: React.FC = () => {
                     {orders.filter(o => o.status === 'pending').length}
                   </span>
                 </div>
+                <div className="glass-morphism px-4 py-2 rounded-lg border border-white/20">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Menu Items: </span>
+                  <span className="font-semibold text-gray-800 dark:text-white">{menuItems.length}</span>
+                </div>
               </div>
             </div>
 
@@ -553,6 +568,18 @@ const StaffDashboard: React.FC = () => {
                     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-500 mb-2">
                       <span>Available: {item.quantity_available}</span>
                       <span>Serves: {item.serves}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-500 mb-2">
+                      <span className={`font-medium ${
+                        item.quantity_available <= 0 
+                          ? 'text-red-500' 
+                          : item.quantity_available <= 5 
+                          ? 'text-yellow-500' 
+                          : 'text-green-500'
+                      }`}>
+                        Stock: {item.quantity_available <= 0 ? 'Out of Stock' : item.quantity_available <= 5 ? 'Low Stock' : 'In Stock'}
+                      </span>
+                      <span>Rating: {item.rating}/5</span>
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                       <span className="font-medium">Canteen:</span> {item.canteen_name}
